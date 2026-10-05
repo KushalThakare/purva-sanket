@@ -1,0 +1,4 @@
+services:
+  backend:
+    environment:
+      PURVA_INPUT_MODE: offline

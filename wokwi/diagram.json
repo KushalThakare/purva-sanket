@@ -1,0 +1,628 @@
+{
+  "version": 1,
+  "author": "PURVA SANKET",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-esp32-devkit-c-v4",
+      "id": "esp",
+      "top": 10,
+      "left": 50,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-ds18b20",
+      "id": "temp",
+      "top": -40,
+      "left": -240,
+      "attrs": {
+        "temperature": "35"
+      }
+    },
+    {
+      "type": "wokwi-mpu6050",
+      "id": "mpu",
+      "top": 80,
+      "left": -260,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "vib",
+      "top": 210,
+      "left": -240,
+      "attrs": {
+        "value": "80"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "pullup",
+      "top": -45,
+      "left": -140,
+      "rotate": 90,
+      "attrs": {
+        "value": "4700"
+      }
+    },
+    {
+      "type": "wokwi-buzzer",
+      "id": "alarm",
+      "top": 390,
+      "left": 360,
+      "attrs": {
+        "volume": "0.1"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "next",
+      "top": 350,
+      "left": -240,
+      "attrs": {
+        "color": "orange",
+        "label": "NEXT SCENE",
+        "key": "N",
+        "bounce": "0"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "manual",
+      "top": 350,
+      "left": -130,
+      "attrs": {
+        "color": "blue",
+        "label": "MANUAL",
+        "key": "M",
+        "bounce": "0"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led0",
+      "top": 0,
+      "left": 370,
+      "attrs": {
+        "color": "green"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r0",
+      "top": 30,
+      "left": 270,
+      "attrs": {
+        "value": "330"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "label0",
+      "top": 0,
+      "left": 415,
+      "attrs": {
+        "text": "NORMAL"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led1",
+      "top": 75,
+      "left": 370,
+      "attrs": {
+        "color": "orange"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r1",
+      "top": 105,
+      "left": 270,
+      "attrs": {
+        "value": "330"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "label1",
+      "top": 75,
+      "left": 415,
+      "attrs": {
+        "text": "WARNING"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led2",
+      "top": 150,
+      "left": 370,
+      "attrs": {
+        "color": "red"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r2",
+      "top": 180,
+      "left": 270,
+      "attrs": {
+        "value": "330"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "label2",
+      "top": 150,
+      "left": 415,
+      "attrs": {
+        "text": "DEGRADED"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led3",
+      "top": 225,
+      "left": 370,
+      "attrs": {
+        "color": "blue"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r3",
+      "top": 255,
+      "left": 270,
+      "attrs": {
+        "value": "330"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "label3",
+      "top": 225,
+      "left": 415,
+      "attrs": {
+        "text": "MOTOR INDICATOR"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led4",
+      "top": 300,
+      "left": 370,
+      "attrs": {
+        "color": "orange"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r4",
+      "top": 330,
+      "left": 270,
+      "attrs": {
+        "value": "330"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "label4",
+      "top": 300,
+      "left": 415,
+      "attrs": {
+        "text": "COOLING COMMAND"
+      }
+    },
+    {
+      "type": "wokwi-slide-switch",
+      "id": "switch0",
+      "top": 480,
+      "left": -250,
+      "attrs": {
+        "bounce": "0"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "swlabel0",
+      "top": 520,
+      "left": -280,
+      "attrs": {
+        "text": "Cooling command\nLEFT = YES / RIGHT = NO"
+      }
+    },
+    {
+      "type": "wokwi-slide-switch",
+      "id": "switch1",
+      "top": 480,
+      "left": -50,
+      "attrs": {
+        "bounce": "0"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "swlabel1",
+      "top": 520,
+      "left": -80,
+      "attrs": {
+        "text": "Injected airflow feedback\nLEFT = YES / RIGHT = NO"
+      }
+    },
+    {
+      "type": "wokwi-slide-switch",
+      "id": "switch2",
+      "top": 480,
+      "left": 150,
+      "attrs": {
+        "bounce": "0"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "swlabel2",
+      "top": 520,
+      "left": 120,
+      "attrs": {
+        "text": "Temperature available\nLEFT = YES / RIGHT = NO"
+      }
+    },
+    {
+      "type": "wokwi-slide-switch",
+      "id": "switch3",
+      "top": 480,
+      "left": 350,
+      "attrs": {
+        "bounce": "0"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "swlabel3",
+      "top": 520,
+      "left": 320,
+      "attrs": {
+        "text": "Guard closed\nLEFT = YES / RIGHT = NO"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "title",
+      "top": -130,
+      "left": -260,
+      "attrs": {
+        "text": "PURVA SANKET | SYNTHETIC SCENARIO DEMO\nN: next scene | M: manual circuit inputs"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "viblabel",
+      "top": 275,
+      "left": -285,
+      "attrs": {
+        "text": "Injected vibration amplitude\n(not a calibrated machine signal)"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "scenelabel",
+      "top": 570,
+      "left": -260,
+      "attrs": {
+        "text": "Scenes 1-6 use firmware test profiles.\nSwitches and sensor sliders operate in MANUAL mode.\nMotor LED represents the demo output; no motor physics are simulated."
+      }
+    },
+    {
+      "type": "wokwi-slide-switch",
+      "id": "motorfeedback",
+      "top": 650,
+      "left": -200,
+      "attrs": {
+        "bounce": "0"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "feedbackpullup",
+      "top": 660,
+      "left": -65,
+      "attrs": {
+        "value": "10000"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "motorfeedbacklabel",
+      "top": 700,
+      "left": -260,
+      "attrs": {
+        "text": "Simulated motor feedback override\nLEFT = NORMAL / RIGHT = REPORT RUNNING\nOperates in every scene; not physical motor feedback."
+      }
+    }
+  ],
+  "connections": [
+    [
+      "esp:TX",
+      "$serialMonitor:RX",
+      "",
+      []
+    ],
+    [
+      "esp:RX",
+      "$serialMonitor:TX",
+      "",
+      []
+    ],
+    [
+      "temp:VCC",
+      "esp:3V3",
+      "red",
+      []
+    ],
+    [
+      "temp:GND",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "temp:DQ",
+      "esp:4",
+      "green",
+      []
+    ],
+    [
+      "pullup:1",
+      "esp:3V3",
+      "red",
+      []
+    ],
+    [
+      "pullup:2",
+      "temp:DQ",
+      "green",
+      []
+    ],
+    [
+      "mpu:VCC",
+      "esp:3V3",
+      "red",
+      []
+    ],
+    [
+      "mpu:GND",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "mpu:SDA",
+      "esp:21",
+      "green",
+      []
+    ],
+    [
+      "mpu:SCL",
+      "esp:22",
+      "blue",
+      []
+    ],
+    [
+      "vib:VCC",
+      "esp:3V3",
+      "red",
+      []
+    ],
+    [
+      "vib:GND",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "vib:SIG",
+      "esp:34",
+      "green",
+      []
+    ],
+    [
+      "alarm:2",
+      "esp:27",
+      "orange",
+      []
+    ],
+    [
+      "alarm:1",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "next:1.l",
+      "esp:26",
+      "green",
+      []
+    ],
+    [
+      "next:2.l",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "manual:1.l",
+      "esp:25",
+      "blue",
+      []
+    ],
+    [
+      "manual:2.l",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "esp:16",
+      "r0:1",
+      "green",
+      []
+    ],
+    [
+      "r0:2",
+      "led0:A",
+      "green",
+      []
+    ],
+    [
+      "led0:C",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "esp:17",
+      "r1:1",
+      "orange",
+      []
+    ],
+    [
+      "r1:2",
+      "led1:A",
+      "orange",
+      []
+    ],
+    [
+      "led1:C",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "esp:18",
+      "r2:1",
+      "red",
+      []
+    ],
+    [
+      "r2:2",
+      "led2:A",
+      "red",
+      []
+    ],
+    [
+      "led2:C",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "esp:19",
+      "r3:1",
+      "blue",
+      []
+    ],
+    [
+      "r3:2",
+      "led3:A",
+      "blue",
+      []
+    ],
+    [
+      "led3:C",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "esp:23",
+      "r4:1",
+      "orange",
+      []
+    ],
+    [
+      "r4:2",
+      "led4:A",
+      "orange",
+      []
+    ],
+    [
+      "led4:C",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "switch0:2",
+      "esp:13",
+      "green",
+      []
+    ],
+    [
+      "switch0:1",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "switch1:2",
+      "esp:14",
+      "green",
+      []
+    ],
+    [
+      "switch1:1",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "switch2:2",
+      "esp:32",
+      "green",
+      []
+    ],
+    [
+      "switch2:1",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "switch3:2",
+      "esp:33",
+      "green",
+      []
+    ],
+    [
+      "switch3:1",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "motorfeedback:2",
+      "esp:35",
+      "purple",
+      []
+    ],
+    [
+      "motorfeedback:1",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "feedbackpullup:1",
+      "esp:3V3",
+      "red",
+      []
+    ],
+    [
+      "feedbackpullup:2",
+      "esp:35",
+      "purple",
+      []
+    ]
+  ],
+  "dependencies": {}
+}

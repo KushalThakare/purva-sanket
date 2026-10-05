@@ -1,0 +1,33 @@
+name: purva-sanket
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:${PURVA_WEB_PORT:-8000}:8000"
+    environment:
+      PURVA_INPUT_MODE: ${PURVA_INPUT_MODE:-mqtt}
+      PURVA_TOPIC: ${PURVA_TOPIC:-}
+      PURVA_MQTT_HOST: ${PURVA_MQTT_HOST:-test.mosquitto.org}
+      PURVA_MQTT_PORT: ${PURVA_MQTT_PORT:-1883}
+      PURVA_DB: /app/data/purva.db
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+
+  vision:
+    profiles: [vision]
+    build:
+      context: .
+      dockerfile: Dockerfile.vision
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - ./media:/media
+      - ./models:/models
+    init: true
+    stop_grace_period: 10s
+

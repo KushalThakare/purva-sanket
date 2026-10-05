@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>PURVA SANKET | Simulation Dashboard</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header><div><span class="eyebrow">AI + IoT / INDUSTRIAL EARLY WARNING</span><h1>PURVA SANKET</h1><p>One machine. Connected evidence. A defined response.</p></div><div class="header-right"><span class="badge" id="source">Connecting…</span><span id="connection">Waiting for backend</span></div></header>
+<main>
+  <div class="notice">Hackathon simulation • Thresholds and ML training data are illustrative. Airflow feedback and scripted worker presence are injected test inputs.</div>
+  <section class="metrics">
+    <article><label>Equipment risk</label><strong id="risk">—</strong><small id="episode-status">No episode</small></article>
+    <article><label>Monitoring health</label><strong id="health">—</strong><small id="age">Waiting for readings</small></article>
+    <article><label>Temperature</label><strong id="temperature">—</strong><small>Virtual DS18B20 / scripted input</small></article>
+    <article><label>Vibration RMS</label><strong id="vibration">—</strong><small>Injected waveform / virtual MPU6050</small></article>
+  </section>
+  <section class="panel">
+    <div class="panel-title">
+      <h2>Real-World Factory Machine Zone Application</h2>
+      <span id="visualizer-status">Live Telemetry & Safety Scene Animation</span>
+    </div>
+    <canvas id="app-visualizer" width="1200" height="260" aria-label="Interactive 2D Factory Floor Visualizer"></canvas>
+    <div class="legend">
+      <span>⚙️ Motor & Rotor State</span>
+      <span>🌡️ Thermal Heat Map</span>
+      <span>〰️ Vibration Waves</span>
+      <span>🌀 Airflow Duct</span>
+      <span>🚶 YOLO Hazard Perimeter Zone</span>
+    </div>
+  </section>
+  <section class="two-column">
+    <article class="panel"><div class="panel-title"><h2>Six-scene demonstration</h2><span id="scene-name">Normal monitoring</span></div><div class="scenes" id="scenes"></div><div class="button-row"><button class="quiet" id="manual">Use manual Wokwi controls</button><button id="ml-demo">ML pattern below fixed limits</button></div><p class="hint">Select scenes in order. Keep scene 2 running for about 25 seconds. Use the additional ML demo from normal Production monitoring to compare current evidence.</p></article>
+    <article class="panel"><h2>Context and protective feedback</h2><label for="mode">Operator-selected mode</label><select id="mode"><option>PRODUCTION</option><option>CLEANING</option><option>MAINTENANCE</option></select><dl><div><dt>Cooling command</dt><dd id="cooling-command">—</dd></div><div><dt>Injected airflow feedback</dt><dd id="cooling-feedback">—</dd></div><div><dt>Guard feedback</dt><dd id="guard">—</dd></div><div><dt>Person in monitored zone</dt><dd id="worker">—</dd></div><div><dt>Presence source</dt><dd id="vision-source">—</dd></div><div><dt>Motor command / Wokwi indicator</dt><dd id="motor">—</dd></div></dl><button class="quiet" id="simulated-vision">Use scripted presence</button></article>
+  </section>
+  <section class="two-column">
+    <article class="panel"><h2>Why this warning exists</h2><p id="explanation">Waiting for observations.</p><ul id="current-evidence"></ul><div class="health-box"><b>Monitoring faults</b><ul id="faults"></ul></div><h3>Evidence retained in the open episode</h3><ul id="memory"></ul></article>
+    <article class="panel"><h2>Sensor ML and trends</h2><div class="ml-row"><strong id="ml">WARMUP</strong><span id="ml-score"></span></div><p class="hint">Isolation Forest compares a 10-sample window with generated normal examples. An anomaly score does not establish the fault cause.</p><canvas id="chart" width="700" height="200" aria-label="Recent temperature and vibration readings"></canvas><div class="legend"><span>Orange: temperature (30–65 °C)</span><span>Blue: vibration (0–1 m/s²)</span></div><p id="feature-values" class="hint"></p></article>
+  </section>
+  <section class="two-column">
+    <article class="panel"><h2>Response verification</h2><strong id="response-status" class="verification-status">Waiting</strong><p id="response-detail" class="hint">Waiting for the device handshake.</p><dl><div><dt>Requested motor state</dt><dd id="response-target">—</dd></div><div><dt>Command</dt><dd id="response-id">—</dd></div><div><dt>Device acknowledgement</dt><dd id="response-ack">—</dd></div><div><dt>Simulated motor feedback</dt><dd id="response-feedback">—</dd></div><div><dt>Feedback source</dt><dd id="response-source">—</dd></div><div><dt>Demo deadline / confirmation</dt><dd id="response-timing">—</dd></div></dl><p class="hint">Command receipt and motor feedback are checked separately. This verifies simulation behavior; it does not establish a physical stop.</p><details><summary>Recent response commands</summary><ul id="commands"></ul></details></article>
+    <article class="panel"><div class="panel-title"><h2>Judge fault tests</h2><button class="quiet" id="clear-faults">Clear test faults</button></div><div id="fault-controls" class="fault-grid"></div><p id="fault-summary" class="hint">No injected faults.</p><p class="hint">Buttons inject faults into the processing pipeline. Delay and repeated-packet tests take more than 6 seconds to lose freshness. Response tests issue a fresh STOP request and use an 8-second demo deadline.</p></article>
+  </section>
+  <section class="panel">
+    <div class="panel-title"><h2>Rules versus rules + ML</h2><a class="download-link" href="/api/comparison/export">Download comparison CSV</a></div>
+    <div class="comparison-grid">
+      <div class="comparison-card"><span class="eyebrow-dark">EXPLICIT RULES</span><strong id="rule-risk">—</strong><ul id="rule-reasons"></ul><small id="rule-first">Waiting for a replay run</small></div>
+      <div class="comparison-card"><span class="eyebrow-dark">SAME RULES + ML EVIDENCE</span><strong id="hybrid-risk">—</strong><ul id="hybrid-reasons"></ul><small id="hybrid-first">Waiting for a replay run</small></div>
+    </div>
+    <p id="comparison-result"></p><p id="comparison-counts" class="hint"></p>
+    <p class="hint">Both paths receive identical accepted inputs and use the same protective and input-health checks. Cards show current evidence; the episode above retains history. Only the hybrid path includes model evidence. Counts are synthetic observations, not factory accuracy.</p>
+  </section>
+  <section class="panel"><div class="panel-title"><h2>Operator response</h2><span id="recovery">Recovery requires acknowledgement, a recorded action and sustained valid readings.</span></div><div class="response"><input id="operator" value="Demo operator" aria-label="Operator"><input id="note" placeholder="Corrective action, e.g. restored cooling and reconnected temperature input" aria-label="Corrective action"><button id="record">Record action</button><button id="ack">Acknowledge</button><button id="stop" class="danger">Request and verify STOP</button><button id="restart">Start / restart</button></div><p class="hint">Recovery also requires fresh, confirmed STOP feedback and cleared test faults. Closing an episode does not restart the motor.</p><p id="message" role="status"></p></section>
+  <section class="panel"><div class="panel-title"><h2>Persistent episode history</h2><span>Stored in SQLite on this laptop</span></div><div class="table-wrap"><table><thead><tr><th>Episode</th><th>Opened</th><th>Status</th><th>Response</th><th>Closed</th></tr></thead><tbody id="history"></tbody></table></div><details><summary>Latest recorded events</summary><ul id="events"></ul></details></section>
+  <footer>PURVA SANKET • Simulated equipment response • Supports operator decisions</footer>
+</main>
+<script src="/static/app.js"></script>
+</body></html>

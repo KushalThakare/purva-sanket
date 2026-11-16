@@ -3,6 +3,7 @@
 **Version 2.0 demo:** response confirmation, eight judge fault tests, same-input
 rules/ML comparison, CSV export and an additional below-limit pattern scenario.
 For your already working Windows installation, follow [UPGRADE.md](UPGRADE.md).
+For physical ESP32 + LM35DZ + MPU-6050 hardware wiring and setup, follow [HARDWARE_SETUP.md](HARDWARE_SETUP.md).
 For presenting the new features, follow [DEMO_GUIDE.md](DEMO_GUIDE.md).
 
 This starter demonstrates one monitored machine zone without building physical hardware. Wokwi generates virtual sensor/test signals. A laptop runs the model, explicit demo safety rules, SQLite database and web dashboard.

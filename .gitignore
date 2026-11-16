@@ -31,8 +31,12 @@ htmlcov/
 # Local databases & logs
 *.sqlite
 *.db
+*.db-shm
+*.db-wal
 *.log
 data/*.db
+data/*.db-shm
+data/*.db-wal
 
 # IDE & OS
 .vscode/

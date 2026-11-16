@@ -1,6 +1,6 @@
 // PURVA SANKET: Physical ESP32 Hardware Implementation
 // Sensors: LM35DZ (Temperature on GPIO 34) + MPU-6050 (Vibration via I2C on GPIO 21/22)
-// This firmware replaces simulation with live physical telemetry and MQTT control.
+// Actuators: Red LED (GPIO 26), Green LED (GPIO 27), Active Buzzer (GPIO 25), Motor LED (GPIO 2)
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
@@ -10,20 +10,28 @@
 #include <math.h>
 
 // ======================== CONFIGURATION ========================
+// 1. Enter your Wi-Fi credentials:
 const char* WIFI_SSID     = "YOUR_WIFI_SSID";       // Set your Wi-Fi SSID
 const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";   // Set your Wi-Fi Password
 
+// 2. MQTT Broker:
 const char* MQTT_HOST     = "test.mosquitto.org";   // Public broker or laptop LAN IP
 const uint16_t MQTT_PORT  = 1883;
 
-// Topic matches topic.txt and .env configuration
+// 3. Project Topic (Matches topic.txt and .env configuration):
 const char* TOPIC_BASE    = "purva-sanket/bbc25cece3d0111e";
 
-// Pin assignments
+// 4. Pin Assignments:
+// Sensors
 const int LM35_PIN        = 34;   // LM35DZ Pin 2 (VOUT) -> ESP32 GPIO 34 (ADC1)
 const int SDA_PIN         = 21;   // MPU-6050 SDA       -> ESP32 GPIO 21
 const int SCL_PIN         = 22;   // MPU-6050 SCL       -> ESP32 GPIO 22
-const int MOTOR_LED       = 2;    // Built-in Blue LED on ESP32 (or GPIO 19)
+
+// Actuators & Indicators (Section 6.3 of Hardware Guide)
+const int RED_LED         = 26;   // Red LED (Warning / Fault) with 220-330 ohm resistor
+const int GREEN_LED       = 27;   // Green LED (Normal Running) with 220-330 ohm resistor
+const int BUZZER_PIN      = 25;   // Active Buzzer module signal pin
+const int MOTOR_LED       = 2;    // Built-in Blue LED on ESP32 DevKit
 // ===============================================================
 
 WiFiClient net;
@@ -34,7 +42,11 @@ Adafruit_MPU6050 mpu;
 bool mpuReady = false;
 bool motorRunning = false;
 bool desiredMotor = false;
+bool remoteAlarm = false;
+bool remoteWarning = false;
+bool remoteDegraded = false;
 bool gotFirstControl = false;
+
 uint32_t lastRestartNonce = 0;
 uint32_t lastControlAt = 0;
 uint32_t lastPublish = 0;
@@ -77,6 +89,24 @@ float readLM35Temperature() {
 }
 
 // ---------------------------------------------------------------
+// Update Actuator Outputs (LEDs and Buzzer) with Local Fallbacks
+// ---------------------------------------------------------------
+void updateActuators() {
+  bool controlFresh = gotFirstControl && (millis() - lastControlAt < 6000);
+  bool localCritical = tempValid && (measuredTemperature >= 60.0);
+  bool isWarning = remoteWarning || localCritical;
+  bool isDegraded = remoteDegraded || !controlFresh || !tempValid || !mpuReady;
+
+  // Motor runs only when commanded, control is fresh, and sensors report safe
+  motorRunning = desiredMotor && controlFresh && tempValid && mpuReady && !localCritical && !remoteDegraded;
+
+  digitalWrite(MOTOR_LED, motorRunning ? HIGH : LOW);
+  digitalWrite(GREEN_LED, (motorRunning && !isWarning) ? HIGH : LOW);
+  digitalWrite(RED_LED, (isWarning || isDegraded) ? HIGH : LOW);
+  digitalWrite(BUZZER_PIN, (remoteAlarm || localCritical) ? HIGH : LOW);
+}
+
+// ---------------------------------------------------------------
 // MQTT Control Callback (Receives commands from laptop dashboard)
 // ---------------------------------------------------------------
 void callback(char* topic, byte* payload, unsigned int length) {
@@ -87,6 +117,9 @@ void callback(char* topic, byte* payload, unsigned int length) {
     lastControlAt = millis();
     lastCommandId = String(doc["command_id"] | "");
     desiredMotor = doc["motor_on"] | false;
+    remoteAlarm = doc["alarm"] | false;
+    remoteWarning = doc["warning"] | false;
+    remoteDegraded = doc["degraded"] | false;
     uint32_t nonce = doc["restart_nonce"] | 0;
 
     if (!gotFirstControl) {
@@ -96,9 +129,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
       lastRestartNonce = nonce;
     }
 
-    // Safety Interlock: Run motor only if backend requests RUN and temp is normal (<60 C)
-    motorRunning = desiredMotor && tempValid && mpuReady && (measuredTemperature < 60.0);
-    digitalWrite(MOTOR_LED, motorRunning ? HIGH : LOW);
+    updateActuators();
   }
 }
 
@@ -163,6 +194,9 @@ void publishTelemetry() {
     sumAA[i] = 0;
   }
 
+  // Update hardware outputs
+  updateActuators();
+
   // 3. Build JSON payload matching backend/engine.py schema
   JsonDocument doc;
   doc["device_id"] = "motor-01";
@@ -213,8 +247,17 @@ void publishTelemetry() {
 // ---------------------------------------------------------------
 void setup() {
   Serial.begin(115200);
+
+  // Initialize output pins
   pinMode(MOTOR_LED, OUTPUT);
+  pinMode(RED_LED, OUTPUT);
+  pinMode(GREEN_LED, OUTPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+
   digitalWrite(MOTOR_LED, LOW);
+  digitalWrite(RED_LED, LOW);
+  digitalWrite(GREEN_LED, LOW);
+  digitalWrite(BUZZER_PIN, LOW);
 
   // Set up ADC for LM35DZ (ADC1 Pin 34)
   analogReadResolution(12);

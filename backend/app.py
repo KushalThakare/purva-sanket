@@ -24,20 +24,20 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class Telemetry(BaseModel):
     model_config = ConfigDict(allow_inf_nan=False)
-    device_id: Literal["motor-01"] = "motor-01"
-    session_id: str = Field(min_length=1, max_length=80)
-    seq: int = Field(ge=0)
+    device_id: str = Field(default="motor-01", max_length=80)
+    session_id: str = Field(default="esp32-live", min_length=1, max_length=80)
+    seq: int = Field(default=0, ge=0)
     device_ts_ms: int = Field(default=0, ge=0)
     scene: int = Field(default=0, ge=0, le=7)
     temp_c: float | None = Field(default=None, ge=-55, le=125)
-    temp_valid: bool
+    temp_valid: bool = True
     vibration_rms_ms2: float | None = Field(default=None, ge=0, le=100)
     vibration_valid: bool = True
-    cooling_command: bool
-    cooling_feedback: bool
+    cooling_command: bool = True
+    cooling_feedback: bool = True
     guard_closed: bool = True
     run_requested: bool = True
-    source: str = Field(default="synthetic HTTP input", max_length=80)
+    source: str = Field(default="ESP32 hardware input", max_length=80)
     motor_indicator: bool | None = None
     worker_simulated: bool = False
     response_protocol: int = Field(default=0, ge=0, le=1)
@@ -107,7 +107,15 @@ class Bridge:
         try:
             if len(message.payload) > 4096:
                 raise ValueError("Oversized telemetry")
-            packet = Telemetry.model_validate_json(message.payload).model_dump()
+            data = json.loads(message.payload)
+            # Adapt incoming fields if using alternative keys from Section 9 contract
+            if "temperature_c" in data and "temp_c" not in data:
+                data["temp_c"] = data["temperature_c"]
+            if "sequence" in data and "seq" not in data:
+                data["seq"] = data["sequence"]
+            if "uptime_ms" in data and "device_ts_ms" not in data:
+                data["device_ts_ms"] = data["uptime_ms"]
+            packet = Telemetry.model_validate(data).model_dump()
             self.engine.ingest(packet)
         except Exception as exc:
             self.last_error = "Rejected telemetry: "+str(exc)[:180]

@@ -224,7 +224,8 @@ class Engine:
             fresh = self.last_received is not None and now - self.last_received <= self.STALE_SECONDS
             temp_ok = fresh and p.get("temp_valid", False) and p.get("temp_c") is not None
             vibration_ok = fresh and p.get("vibration_valid", False) and p.get("vibration_rms_ms2") is not None
-            vision_ok = self.vision["valid"] and now - self.vision["at"] <= self.STALE_SECONDS
+            vision_active = self.vision_external or self.injector.enabled.get("camera_missing", False)
+            vision_ok = (self.vision["valid"] and now - self.vision["at"] <= self.STALE_SECONDS) if vision_active else True
             faults = []
             if not fresh:
                 faults.append("Telemetry missing or stale")
@@ -232,7 +233,7 @@ class Engine:
                 faults.append("Temperature unavailable")
             if not vibration_ok:
                 faults.append("Vibration unavailable")
-            if not vision_ok:
+            if vision_active and not vision_ok:
                 faults.append("Camera/presence observation unavailable")
             health = "AVAILABLE" if not faults else "DEGRADED"
             temperature = p.get("temp_c") if temp_ok else None

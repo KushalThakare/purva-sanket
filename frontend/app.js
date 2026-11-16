@@ -1,5 +1,5 @@
 const $ = id => document.getElementById(id);
-const set = (id,value) => { $(id).textContent=value ?? "—"; };
+const set = (id,value) => { const el=$(id); if(el) el.textContent=value ?? "—"; };
 const points=[];
 let requests=0, refreshing=false, lastSample=null, currentFaults={};
 const faultLabels={

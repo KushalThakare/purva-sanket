@@ -7,6 +7,8 @@ import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
+import serial
+import serial.tools.list_ports
 import paho.mqtt.client as mqtt
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
@@ -126,8 +128,42 @@ class Bridge:
         if self.client:
             self.client.connect_async(os.getenv("PURVA_MQTT_HOST", "test.mosquitto.org"), int(os.getenv("PURVA_MQTT_PORT", "1883")), keepalive=30)
             self.client.loop_start()
+        if self.mode in ("hardware", "direct", "http"):
+            threading.Thread(target=self.run_serial, daemon=True).start()
         self.thread = threading.Thread(target=self.run, daemon=True)
         self.thread.start()
+
+    def run_serial(self):
+        while not self.stop_event.is_set():
+            port_to_try = os.getenv("PURVA_SERIAL_PORT", None)
+            if not port_to_try:
+                try:
+                    for p in serial.tools.list_ports.comports():
+                        desc = (p.description or "") + (p.manufacturer or "")
+                        if "CP210" in desc or "USB" in desc or "UART" in desc or p.device in ("COM3", "COM4", "COM5"):
+                            port_to_try = p.device
+                            break
+                except Exception:
+                    pass
+            if port_to_try:
+                try:
+                    with serial.Serial(port_to_try, 115200, timeout=1) as ser:
+                        while not self.stop_event.is_set():
+                            raw = ser.readline().decode("utf-8", errors="ignore").strip()
+                            if raw.startswith("{") and "temp_c" in raw:
+                                try:
+                                    data = json.loads(raw)
+                                    packet = Telemetry.model_validate(data).model_dump()
+                                    self.engine.ingest(packet)
+                                    control = self.engine.control_payload()
+                                    self.engine.mark_control_sent(control["command_id"])
+                                    ser.write((json.dumps({"control": control}) + "\n").encode())
+                                except Exception:
+                                    pass
+                except Exception:
+                    self.stop_event.wait(2)
+            else:
+                self.stop_event.wait(2)
 
     def publish(self, suffix, payload):
         if self.client and self.connected:

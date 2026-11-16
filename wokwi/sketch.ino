@@ -11,12 +11,12 @@
 
 // ======================== CONFIGURATION ========================
 // 1. Enter your Wi-Fi credentials (or mobile hotspot):
-const char* WIFI_SSID     = "YOUR_WIFI_SSID";       // Set your Wi-Fi SSID
-const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";   // Set your Wi-Fi Password
+const char* WIFI_SSID     = "Redmi 12";       // Set your Wi-Fi SSID
+const char* WIFI_PASSWORD = "        ";   // Set your Wi-Fi Password
 
 // 2. Direct Backend URL (Replace with your laptop's local LAN IP):
 // On Windows, run 'ipconfig' in command prompt to find your IPv4 address (e.g., 192.168.1.50)
-const char* BACKEND_URL   = "http://192.168.1.100:8000/api/telemetry";
+const char* BACKEND_URL   = "http://10.98.37.92:8000/api/telemetry";
 
 // 3. Pin Assignments:
 // Sensors
@@ -122,12 +122,6 @@ void sampleVibration() {
 // Send Telemetry Direct via HTTP POST and Receive Control Command
 // ---------------------------------------------------------------
 void sendTelemetryDirect() {
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("[WiFi] Disconnected. Reconnecting...");
-    WiFi.reconnect();
-    return;
-  }
-
   // 1. Read LM35 Temperature
   measuredTemperature = readLM35Temperature();
   tempValid = (measuredTemperature >= 0.0 && measuredTemperature <= 110.0);
@@ -190,20 +184,15 @@ void sendTelemetryDirect() {
   String payload;
   serializeJson(doc, payload);
 
-  // 4. Direct HTTP POST to Laptop Backend
-  WiFiClient client;
-  HTTPClient http;
-  http.begin(client, BACKEND_URL);
-  http.addHeader("Content-Type", "application/json");
-  http.setTimeout(2500);
+  // 4. Always stream JSON over USB Serial (so dashboard connects instantly over USB cable!)
+  Serial.println(payload);
 
-  int httpCode = http.POST(payload);
-
-  if (httpCode == HTTP_CODE_OK || httpCode == 200) {
-    String response = http.getString();
-    JsonDocument resDoc;
-    if (!deserializeJson(resDoc, response)) {
-      JsonObject control = resDoc["control"];
+  // Check for commands over USB Serial
+  if (Serial.available()) {
+    String cmdLine = Serial.readStringUntil('\n');
+    JsonDocument cmdDoc;
+    if (!deserializeJson(cmdDoc, cmdLine)) {
+      JsonObject control = cmdDoc["control"];
       if (!control.isNull()) {
         desiredMotor = control["motor_on"] | false;
         remoteAlarm = control["alarm"] | false;
@@ -214,13 +203,43 @@ void sendTelemetryDirect() {
         gotFirstControl = true;
       }
     }
-    Serial.printf("[HTTP 200] LM35: %.1f C | Vib: %.3f m/s2 | Motor: %s\n",
-                  measuredTemperature, accelerationRms, motorRunning ? "RUN" : "STOP");
-  } else {
-    Serial.printf("[HTTP ERROR %d] Failed to reach backend: %s\n", httpCode, BACKEND_URL);
   }
 
-  http.end();
+  // 5. If Wi-Fi is connected, also send via direct HTTP POST
+  if (WiFi.status() == WL_CONNECTED) {
+    WiFiClient client;
+    HTTPClient http;
+    http.begin(client, BACKEND_URL);
+    http.addHeader("Content-Type", "application/json");
+    http.setTimeout(2500);
+
+    int httpCode = http.POST(payload);
+    if (httpCode == HTTP_CODE_OK || httpCode == 200) {
+      String response = http.getString();
+      JsonDocument resDoc;
+      if (!deserializeJson(resDoc, response)) {
+        JsonObject control = resDoc["control"];
+        if (!control.isNull()) {
+          desiredMotor = control["motor_on"] | false;
+          remoteAlarm = control["alarm"] | false;
+          remoteWarning = control["warning"] | false;
+          remoteDegraded = control["degraded"] | false;
+          lastCommandId = String(control["command_id"] | "");
+          lastControlAt = millis();
+          gotFirstControl = true;
+        }
+      }
+    }
+    http.end();
+  } else {
+    static uint32_t lastWifiAttempt = 0;
+    if (millis() - lastWifiAttempt > 10000) {
+      lastWifiAttempt = millis();
+      WiFi.disconnect();
+      WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    }
+  }
+
   updateActuators();
 }
 
@@ -260,13 +279,21 @@ void setup() {
   sessionId = String((uint32_t)esp_random(), HEX);
 
   // Connect to Wi-Fi
+  WiFi.mode(WIFI_STA);
+  WiFi.setAutoReconnect(true);
   Serial.printf("[WiFi] Connecting to %s", WIFI_SSID);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  while (WiFi.status() != WL_CONNECTED) {
+  int attempts = 0;
+  while (WiFi.status() != WL_CONNECTED && attempts < 30) {
     delay(500);
     Serial.print(".");
+    attempts++;
   }
-  Serial.printf("\n[WiFi] Connected! IP: %s\n", WiFi.localIP().toString().c_str());
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.printf("\n[WiFi] Connected! IP: %s\n", WiFi.localIP().toString().c_str());
+  } else {
+    Serial.println("\n[WiFi] Not connected yet. Checking band (must be 2.4 GHz) or password...");
+  }
   Serial.printf("[Backend Target] %s\n", BACKEND_URL);
 }
 

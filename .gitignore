@@ -44,3 +44,4 @@ data/*.db-wal
 .DS_Store
 Thumbs.db
 wokwi/sketch/
+.pio/

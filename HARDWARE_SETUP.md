@@ -1,6 +1,6 @@
 # PURVA SANKET — Physical Hardware Integration & Setup Guide
 
-This guide details how to set up, wire, flash, and operate the **PURVA SANKET** predictive maintenance and machine safety monitoring system using physical sensors and an ESP32 microcontroller, streaming telemetry via MQTT to the local FastAPI backend and web dashboard.
+This guide details how to set up, wire, flash, and operate the **PURVA SANKET** predictive maintenance and machine safety monitoring system using physical sensors and an ESP32 microcontroller, streaming telemetry directly via HTTP REST to the local FastAPI backend and web dashboard. **No MQTT broker or Wokwi simulation required.**
 
 ---
 
@@ -62,34 +62,39 @@ This guide details how to set up, wire, flash, and operate the **PURVA SANKET** 
 
 ### Step 2: Install ESP32 Arduino Libraries
 In **Arduino IDE** (or PlatformIO), install:
-- `PubSubClient` by *Nick O'Leary*
 - `ArduinoJson` by *Benoit Blanchon* (Version 7)
 - `Adafruit MPU6050` by *Adafruit*
 - `Adafruit Unified Sensor` by *Adafruit*
 
+*(No external MQTT library is required; HTTPClient and WiFi are built into the ESP32 core).*
+
 ### Step 3: Configure and Flash Firmware
 1. Open `wokwi/sketch.ino`.
-2. Update your Wi-Fi credentials around line 13:
+2. Update your Wi-Fi credentials around line 14:
    ```cpp
    const char* WIFI_SSID     = "YOUR_WIFI_NAME";
    const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
    ```
-3. Confirm the MQTT topic matches `topic.txt` and `.env` (`purva-sanket/bbc25cece3d0111e`).
+3. Update `BACKEND_URL` with your laptop's local IPv4 address (found via `ipconfig` in command prompt):
+   ```cpp
+   const char* BACKEND_URL   = "http://192.168.1.100:8000/api/telemetry";
+   ```
 4. Select board **ESP32 Dev Module** and the active **COM Port**.
 5. Upload the sketch.
 6. Open **Serial Monitor** at **115200 baud** to verify:
    ```text
    [MPU-6050] Initialized successfully.
    [WiFi] Connected! IP: 192.168.x.x
-   [MQTT] Connecting... Connected!
-   [Telemetry] LM35: 26.5 C | Vib RMS: 0.081 m/s2 | Motor: STOP
+   [Backend Target] http://192.168.1.100:8000/api/telemetry
+   [HTTP 200] LM35: 26.5 C | Vib: 0.081 m/s2 | Motor: STOP
    ```
 
 ### Step 4: Run the Backend & Dashboard
-Start the local server with MQTT mode enabled:
+Start the local server in hardware mode:
 ```powershell
-python run.py --input mqtt
+python run.py
 ```
+*(By default, this binds to `0.0.0.0:8000` in hardware mode, accepting direct telemetry from the ESP32 without an MQTT broker).*
 
 Open your browser at:
 ```
@@ -100,6 +105,6 @@ http://127.0.0.1:8000
 
 ## 4. Live Operational Features
 
-- **Live Physical Telemetry**: Live temperature readings from the LM35DZ and 100 Hz 3-axis dynamic vibration RMS ($m/s^2$) from the MPU-6050 update continuously on the dashboard.
-- **Fail-Safe Motor Control**: Click **Start / restart** on the dashboard. The backend validates safety conditions and transmits a confirmed RUN command over MQTT, turning the Green LED and ESP32 Motor LED ON.
-- **Local Fallback Protection**: If the LM35DZ temperature reaches $\ge 60^\circ\text{C}$, the firmware triggers an emergency stop, sounds the Buzzer, and latches the Red LED immediately even if network connection is lost.
+- **Direct Live Telemetry**: Live temperature readings from the LM35DZ and 100 Hz 3-axis dynamic vibration RMS ($m/s^2$) from the MPU-6050 stream directly to the dashboard over HTTP.
+- **Fail-Safe Motor Control**: Click **Start / restart** on the dashboard. The backend validates safety conditions and transmits a confirmed RUN command in the HTTP response, turning the Green LED and ESP32 Motor LED ON.
+- **Local Fallback Protection**: If the LM35DZ temperature reaches $\ge 60^\circ\text{C}$, the firmware triggers an emergency stop, sounds the Buzzer, and latches the Red LED immediately even if the network or laptop disconnects.

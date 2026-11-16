@@ -1,8 +1,8 @@
-// PURVA SANKET: Physical ESP32 Hardware Implementation
+// PURVA SANKET: Physical ESP32 Hardware Firmware (Direct HTTP REST — No Broker)
 // Sensors: LM35DZ (Temperature on GPIO 34) + MPU-6050 (Vibration via I2C on GPIO 21/22)
 // Actuators: Red LED (GPIO 26), Green LED (GPIO 27), Active Buzzer (GPIO 25), Motor LED (GPIO 2)
 #include <WiFi.h>
-#include <PubSubClient.h>
+#include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <Wire.h>
 #include <Adafruit_MPU6050.h>
@@ -10,32 +10,27 @@
 #include <math.h>
 
 // ======================== CONFIGURATION ========================
-// 1. Enter your Wi-Fi credentials:
+// 1. Enter your Wi-Fi credentials (or mobile hotspot):
 const char* WIFI_SSID     = "YOUR_WIFI_SSID";       // Set your Wi-Fi SSID
 const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";   // Set your Wi-Fi Password
 
-// 2. MQTT Broker:
-const char* MQTT_HOST     = "test.mosquitto.org";   // Public broker or laptop LAN IP
-const uint16_t MQTT_PORT  = 1883;
+// 2. Direct Backend URL (Replace with your laptop's local LAN IP):
+// On Windows, run 'ipconfig' in command prompt to find your IPv4 address (e.g., 192.168.1.50)
+const char* BACKEND_URL   = "http://192.168.1.100:8000/api/telemetry";
 
-// 3. Project Topic (Matches topic.txt and .env configuration):
-const char* TOPIC_BASE    = "purva-sanket/bbc25cece3d0111e";
-
-// 4. Pin Assignments:
+// 3. Pin Assignments:
 // Sensors
 const int LM35_PIN        = 34;   // LM35DZ Pin 2 (VOUT) -> ESP32 GPIO 34 (ADC1)
 const int SDA_PIN         = 21;   // MPU-6050 SDA       -> ESP32 GPIO 21
 const int SCL_PIN         = 22;   // MPU-6050 SCL       -> ESP32 GPIO 22
 
-// Actuators & Indicators (Section 6.3 of Hardware Guide)
+// Actuators & Indicators
 const int RED_LED         = 26;   // Red LED (Warning / Fault) with 220-330 ohm resistor
 const int GREEN_LED       = 27;   // Green LED (Normal Running) with 220-330 ohm resistor
 const int BUZZER_PIN      = 25;   // Active Buzzer module signal pin
 const int MOTOR_LED       = 2;    // Built-in Blue LED on ESP32 DevKit
 // ===============================================================
 
-WiFiClient net;
-PubSubClient mqtt(net);
 Adafruit_MPU6050 mpu;
 
 // State tracking variables
@@ -54,8 +49,6 @@ uint32_t lastSample = 0;
 uint32_t sequence = 0;
 
 String sessionId;
-String telemetryTopic;
-String controlTopic;
 String lastCommandId = "";
 
 // Vibration buffers (100 Hz sampling, evaluated every 1000 ms)
@@ -92,7 +85,7 @@ float readLM35Temperature() {
 // Update Actuator Outputs (LEDs and Buzzer) with Local Fallbacks
 // ---------------------------------------------------------------
 void updateActuators() {
-  bool controlFresh = gotFirstControl && (millis() - lastControlAt < 6000);
+  bool controlFresh = gotFirstControl && (millis() - lastControlAt < 8000);
   bool localCritical = tempValid && (measuredTemperature >= 60.0);
   bool isWarning = remoteWarning || localCritical;
   bool isDegraded = remoteDegraded || !controlFresh || !tempValid || !mpuReady;
@@ -104,49 +97,6 @@ void updateActuators() {
   digitalWrite(GREEN_LED, (motorRunning && !isWarning) ? HIGH : LOW);
   digitalWrite(RED_LED, (isWarning || isDegraded) ? HIGH : LOW);
   digitalWrite(BUZZER_PIN, (remoteAlarm || localCritical) ? HIGH : LOW);
-}
-
-// ---------------------------------------------------------------
-// MQTT Control Callback (Receives commands from laptop dashboard)
-// ---------------------------------------------------------------
-void callback(char* topic, byte* payload, unsigned int length) {
-  JsonDocument doc;
-  if (deserializeJson(doc, payload, length)) return;
-
-  if (String(topic) == controlTopic) {
-    lastControlAt = millis();
-    lastCommandId = String(doc["command_id"] | "");
-    desiredMotor = doc["motor_on"] | false;
-    remoteAlarm = doc["alarm"] | false;
-    remoteWarning = doc["warning"] | false;
-    remoteDegraded = doc["degraded"] | false;
-    uint32_t nonce = doc["restart_nonce"] | 0;
-
-    if (!gotFirstControl) {
-      lastRestartNonce = nonce;
-      gotFirstControl = true;
-    } else if (nonce != lastRestartNonce) {
-      lastRestartNonce = nonce;
-    }
-
-    updateActuators();
-  }
-}
-
-// ---------------------------------------------------------------
-// MQTT Reconnection
-// ---------------------------------------------------------------
-void reconnect() {
-  if (WiFi.status() != WL_CONNECTED || mqtt.connected()) return;
-
-  String clientId = "purva-esp32-" + sessionId;
-  Serial.print("[MQTT] Connecting...");
-  if (mqtt.connect(clientId.c_str())) {
-    Serial.println(" Connected!");
-    mqtt.subscribe(controlTopic.c_str());
-  } else {
-    Serial.printf(" Failed (state %d). Will retry.\n", mqtt.state());
-  }
 }
 
 // ---------------------------------------------------------------
@@ -169,9 +119,15 @@ void sampleVibration() {
 }
 
 // ---------------------------------------------------------------
-// Publish Telemetry Packet to Laptop Backend
+// Send Telemetry Direct via HTTP POST and Receive Control Command
 // ---------------------------------------------------------------
-void publishTelemetry() {
+void sendTelemetryDirect() {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("[WiFi] Disconnected. Reconnecting...");
+    WiFi.reconnect();
+    return;
+  }
+
   // 1. Read LM35 Temperature
   measuredTemperature = readLM35Temperature();
   tempValid = (measuredTemperature >= 0.0 && measuredTemperature <= 110.0);
@@ -194,16 +150,16 @@ void publishTelemetry() {
     sumAA[i] = 0;
   }
 
-  // Update hardware outputs
+  // Update physical actuators
   updateActuators();
 
-  // 3. Build JSON payload matching backend/engine.py schema
+  // 3. Build JSON payload
   JsonDocument doc;
-  doc["device_id"] = "motor-01";
+  doc["device_id"] = "esp32-01";
   doc["session_id"] = sessionId;
   doc["seq"] = sequence++;
   doc["device_ts_ms"] = millis();
-  doc["scene"] = 0; // 0 = Physical hardware mode
+  doc["scene"] = 0; // Physical hardware mode
 
   if (tempValid) doc["temp_c"] = measuredTemperature;
   else doc["temp_c"] = nullptr;
@@ -222,7 +178,7 @@ void publishTelemetry() {
   doc["motor_indicator"] = motorRunning;
 
   // Handshake and confirmation protocol
-  bool feedbackFresh = gotFirstControl && (millis() - lastControlAt < 6000) && (lastCommandId.length() > 0);
+  bool feedbackFresh = gotFirstControl && (millis() - lastControlAt < 8000) && (lastCommandId.length() > 0);
   doc["response_protocol"] = 1;
   doc["ack_command_id"] = lastCommandId;
   doc["feedback_command_id"] = lastCommandId;
@@ -231,15 +187,41 @@ void publishTelemetry() {
   doc["motor_feedback_source"] = "ESP32 Physical Actuator Feedback";
   doc["source"] = "ESP32 physical hardware (LM35DZ + MPU6050)";
 
-  String output;
-  serializeJson(doc, output);
+  String payload;
+  serializeJson(doc, payload);
 
-  Serial.printf("[Telemetry] LM35: %.1f C | Vib RMS: %.3f m/s2 | Motor: %s\n",
-                measuredTemperature, accelerationRms, motorRunning ? "RUN" : "STOP");
+  // 4. Direct HTTP POST to Laptop Backend
+  WiFiClient client;
+  HTTPClient http;
+  http.begin(client, BACKEND_URL);
+  http.addHeader("Content-Type", "application/json");
+  http.setTimeout(2500);
 
-  if (mqtt.connected()) {
-    mqtt.publish(telemetryTopic.c_str(), output.c_str(), false);
+  int httpCode = http.POST(payload);
+
+  if (httpCode == HTTP_CODE_OK || httpCode == 200) {
+    String response = http.getString();
+    JsonDocument resDoc;
+    if (!deserializeJson(resDoc, response)) {
+      JsonObject control = resDoc["control"];
+      if (!control.isNull()) {
+        desiredMotor = control["motor_on"] | false;
+        remoteAlarm = control["alarm"] | false;
+        remoteWarning = control["warning"] | false;
+        remoteDegraded = control["degraded"] | false;
+        lastCommandId = String(control["command_id"] | "");
+        lastControlAt = millis();
+        gotFirstControl = true;
+      }
+    }
+    Serial.printf("[HTTP 200] LM35: %.1f C | Vib: %.3f m/s2 | Motor: %s\n",
+                  measuredTemperature, accelerationRms, motorRunning ? "RUN" : "STOP");
+  } else {
+    Serial.printf("[HTTP ERROR %d] Failed to reach backend: %s\n", httpCode, BACKEND_URL);
   }
+
+  http.end();
+  updateActuators();
 }
 
 // ---------------------------------------------------------------
@@ -276,8 +258,6 @@ void setup() {
 
   // Create unique session ID
   sessionId = String((uint32_t)esp_random(), HEX);
-  telemetryTopic = String(TOPIC_BASE) + "/telemetry";
-  controlTopic   = String(TOPIC_BASE) + "/control";
 
   // Connect to Wi-Fi
   Serial.printf("[WiFi] Connecting to %s", WIFI_SSID);
@@ -287,30 +267,20 @@ void setup() {
     Serial.print(".");
   }
   Serial.printf("\n[WiFi] Connected! IP: %s\n", WiFi.localIP().toString().c_str());
-
-  // Setup MQTT client
-  mqtt.setServer(MQTT_HOST, MQTT_PORT);
-  mqtt.setCallback(callback);
-  mqtt.setBufferSize(2048);
-  mqtt.setSocketTimeout(3);
+  Serial.printf("[Backend Target] %s\n", BACKEND_URL);
 }
 
 // ---------------------------------------------------------------
 // Main Loop
 // ---------------------------------------------------------------
 void loop() {
-  if (WiFi.status() == WL_CONNECTED && !mqtt.connected()) {
-    reconnect();
-  }
-  mqtt.loop();
-
   // Continuously sample vibration (100 Hz)
   sampleVibration();
 
-  // Transmit telemetry once every 1 second
+  // Send telemetry directly via HTTP POST once every 1 second
   if (millis() - lastPublish >= 1000) {
     lastPublish = millis();
-    publishTelemetry();
+    sendTelemetryDirect();
   }
   delay(1);
 }

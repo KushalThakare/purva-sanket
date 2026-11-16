@@ -49,10 +49,10 @@ for(const [name,label] of Object.entries(faultLabels)){
   };
   $("fault-controls").append(button);
 }
-$("manual").onclick=()=>command("/api/scene",{scene:0},"Manual Wokwi controls requested.");
-$("ml-demo").onclick=()=>command("/api/scene",{scene:7},"ML pattern requested. Use Production mode and compare after a valid 10-sample window.");
-$("simulated-vision").onclick=()=>command("/api/vision/simulated",{},"Scripted presence enabled; this is a simulated observation.");
-$("clear-faults").onclick=()=>command("/api/faults/clear",{},"Test faults cleared. Restore the Wokwi feedback switch and resolve any open episode.");
+if($("manual")) $("manual").onclick=()=>command("/api/scene",{scene:0},"Physical sensor mode enabled.");
+if($("ml-demo")) $("ml-demo").onclick=()=>command("/api/scene",{scene:7},"ML pattern requested. Use Production mode and compare after a valid 10-sample window.");
+if($("simulated-vision")) $("simulated-vision").onclick=()=>command("/api/vision/simulated",{},"Zone observation updated.");
+if($("clear-faults")) $("clear-faults").onclick=()=>command("/api/faults/clear",{},"Test faults cleared. Ready to resolve open episodes.");
 $("mode").onchange=()=>command("/api/mode",{mode:$("mode").value},"Operating mode selected.");
 $("ack").onclick=()=>action("acknowledge");
 $("record").onclick=()=>action("corrective_action",$("note").value);
@@ -92,12 +92,12 @@ function renderVerification(r){
   if(!r)return;
   set("response-status",r.status.replaceAll("_"," "));
   $("response-status").className="verification-status "+(r.confirmed?"normal":r.status==="UNCONFIRMED"||r.status==="PROTOCOL_REQUIRED"?"fault":"warn");
-  set("response-detail",r.status==="PROTOCOL_REQUIRED"?"Update the Wokwi sketch and diagram to enable the command/feedback protocol.":r.detail);
+  set("response-detail",r.status==="PROTOCOL_REQUIRED"?"Awaiting physical ESP32 response confirmation.":r.detail);
   set("response-target",r.requested_running?"RUN":"STOP");set("response-id",r.command_id?.slice(0,12));
   set("response-ack",r.acknowledged_at!==null&&r.acknowledged_at!==undefined?"Received at "+when(r.acknowledged_at):"Waiting");
   set("response-feedback",r.feedback_running===null||r.feedback_running===undefined?"Unavailable / unmatched":r.feedback_running?"RUNNING":"STOPPED");
   set("response-source",r.feedback_source);
-  set("response-timing",r.confirmed?"Confirmed in "+(r.confirmation_seconds??0).toFixed(2)+" s":r.seconds_remaining===null?"Awaiting device session / publication":r.seconds_remaining.toFixed(1)+" s remaining");
+  set("response-timing",r.confirmed?"Confirmed in "+(r.confirmation_seconds??0).toFixed(2)+" s":r.seconds_remaining===null?"Awaiting device session / transmission":r.seconds_remaining.toFixed(1)+" s remaining");
 }
 function renderComparison(c){
   if(!c)return;
@@ -112,7 +112,7 @@ function renderComparison(c){
   if(c.hybrid_lead_seconds!==null){
     result=c.hybrid_lead_seconds>0?"Hybrid first warning was "+c.hybrid_lead_seconds.toFixed(1)+" s earlier in this run.":c.hybrid_lead_seconds<0?"Rules first warning was "+(-c.hybrid_lead_seconds).toFixed(1)+" s earlier in this run.":"Both paths first warned at the same accepted sample.";
   }else if(run&&run.hybrid_first_warning_at!==null&&run.rule_first_warning_at===null){
-    result="Only the hybrid path has warned so far in this run. This does not establish an accident prediction.";
+    result="Only the hybrid path has warned so far in this run.";
   }
   set("comparison-result",result);
   set("comparison-counts",run?"Run "+run.id.slice(0,8)+" · "+run.sample_count+" accepted samples · Rules: "+run.rule_warning_samples+" warning samples / "+run.rule_warning_events+" warning starts · Hybrid: "+run.hybrid_warning_samples+" warning samples / "+run.hybrid_warning_events+" warning starts":"Waiting for a comparison run.");
@@ -122,8 +122,8 @@ async function refresh(){
   try{
     const response=await fetch("/api/state");if(!response.ok)throw Error("Backend unavailable");
     const s=await response.json();
-    set("source",s.input_mode==="offline"?"LOCAL REPLAY · SYNTHETIC INPUTS":"WOKWI / MQTT · SIMULATED INPUTS");
-    set("connection",s.input_mode==="offline"?"Replay running on laptop":s.mqtt_connected?"Broker connected":"Broker disconnected");
+    set("source",s.input_mode==="offline"?"LOCAL REPLAY":"PHYSICAL ESP32 HARDWARE");
+    set("connection",s.input_mode==="offline"?"Replay running on laptop":(s.telemetry_age_s!==null&&s.telemetry_age_s<=6)?"ESP32 Live Connected":"Waiting for ESP32");
     set("risk",s.risk);$("risk").className=s.risk==="NORMAL"?"normal":"warn";
     set("health",s.monitoring_health);$("health").className=s.monitoring_health==="AVAILABLE"?"normal":"fault";
     set("age",s.telemetry_age_s===null?"No telemetry":"Last telemetry "+s.telemetry_age_s.toFixed(1)+" s ago");
@@ -137,8 +137,8 @@ async function refresh(){
     set("cooling-command",flag(s.cooling_command));set("cooling-feedback",flag(s.cooling_feedback));
     set("guard",s.guard_closed===undefined||s.guard_closed===null?"Unknown":s.guard_closed?"Closed":"Open");
     set("worker",s.vision.fresh?s.vision.present?"Inside zone":"Outside zone":"Unknown");
-    set("vision-source",s.vision.source==="vision"?"YOLO / video or webcam":s.vision.source==="simulated"?"Scripted test input":"Unavailable");
-    set("motor",(s.motor_command?"RUN":"STOP")+" / "+(s.motor_feedback===null?"Replay only":s.motor_feedback?"ON":"OFF"));
+    set("vision-source",s.vision.source==="vision"?"Camera stream":s.vision.source==="simulated"?"Zone observation":"Unavailable");
+    set("motor",(s.motor_command?"RUN":"STOP")+" / "+(s.motor_feedback===null?"Waiting":s.motor_feedback?"ON":"OFF"));
     set("explanation",s.current_evidence.length?"Contributing evidence from the current observations:":s.episode?"Earlier evidence remains unresolved. Closure requires valid recovery and operator response.":"No current equipment warning. Monitoring health is reported separately.");
     list("current-evidence",s.current_evidence.map(e=>e.text));
     list("faults",s.faults.length?s.faults:["No current input-health fault"]);
@@ -181,9 +181,9 @@ function drawApplicationVisualizer(){
   ctx.fillStyle="#064e3b";ctx.strokeStyle="#10b981";ctx.lineWidth=2;
   ctx.fillRect(25,20,240,195);ctx.strokeRect(25,20,240,195);
   ctx.fillStyle="#ecfdf5";ctx.font="bold 12px Arial";ctx.textAlign="left";
-  ctx.fillText("ESP32 IoT GATEWAY BOARD",38,42);
+  ctx.fillText("ESP32 HARDWARE GATEWAY",38,42);
   ctx.fillStyle="#9ca3af";ctx.font="10px Arial";
-  ctx.fillText("Topic: "+(s.topic||"purva/demo/telemetry"),38,58);
+  ctx.fillText(s.input_mode==="offline"?"Mode: Local Replay":"Mode: Physical ESP32 Live",38,58);
   const leds=[
     {label:"NORMAL",active:s.monitoring_health==="AVAILABLE"&&s.risk==="NORMAL",color:"#22c55e"},
     {label:"WARNING",active:s.risk!=="NORMAL",color:"#f59e0b"},

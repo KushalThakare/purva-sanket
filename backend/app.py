@@ -91,6 +91,8 @@ class Bridge:
             self.client.on_disconnect = self.on_disconnect
             self.client.on_message = self.on_message
             self.client.reconnect_delay_set(1, 15)
+        elif mode in ("hardware", "direct", "http"):
+            self.connected = True
 
     def on_connect(self, client, userdata, flags, reason_code, properties):
         self.connected = not reason_code.is_failure
@@ -137,9 +139,11 @@ class Bridge:
             self.scene, self.step = scene, 0
         if self.mode == "mqtt":
             if not self.publish("/scenario", {"scene": scene}):
-                raise ValueError("MQTT is not connected. Select the scene using Wokwi's buttons, or wait for the broker.")
+                raise ValueError("MQTT is not connected. Wait for broker.")
+        elif self.mode in ("hardware", "direct", "http"):
+            pass  # physical hardware mode always runs live sensor acquisition
         elif scene == 0:
-            raise ValueError("Manual circuit controls are available in MQTT/Wokwi mode.")
+            raise ValueError("Manual circuit controls are available in hardware mode.")
 
     def run(self):
         while not self.stop_event.is_set():
@@ -153,9 +157,10 @@ class Bridge:
                         self.seq += 1
                     packet.update(simulated_response(control))
                     self.engine.ingest(Telemetry.model_validate(packet).model_dump())
-                control = self.engine.control_payload()
-                if self.publish("/control", control):
-                    self.engine.mark_control_sent(control["command_id"])
+                elif self.mode == "mqtt":
+                    control = self.engine.control_payload()
+                    if self.publish("/control", control):
+                        self.engine.mark_control_sent(control["command_id"])
             except Exception as exc:
                 self.last_error = str(exc)[:180]
             self.stop_event.wait(1)
@@ -171,12 +176,12 @@ class Bridge:
 
 @asynccontextmanager
 async def lifespan(app):
-    mode = os.getenv("PURVA_INPUT_MODE", "offline").lower()
-    if mode not in ("offline", "mqtt"):
-        raise ValueError("PURVA_INPUT_MODE must be offline or mqtt")
+    mode = os.getenv("PURVA_INPUT_MODE", "hardware").lower()
+    if mode not in ("offline", "mqtt", "hardware", "direct", "http"):
+        mode = "hardware"
     topic = os.getenv("PURVA_TOPIC", "").strip().rstrip("/")
     if mode == "mqtt" and not valid_topic(topic):
-        raise ValueError("Generate a unique PURVA_TOPIC with configure_topic.py, then copy TOPIC_BASE into Wokwi")
+        raise ValueError("Generate a unique PURVA_TOPIC with configure_topic.py")
     app.state.engine = Engine(os.getenv("PURVA_DB", str(ROOT/"data"/"purva.db")))
     app.state.bridge = Bridge(app.state.engine, mode, topic)
     app.state.bridge.start()
@@ -184,7 +189,7 @@ async def lifespan(app):
     app.state.bridge.stop()
 
 
-app = FastAPI(title="PURVA SANKET Simulation Demo", version="2.0.0-demo", lifespan=lifespan)
+app = FastAPI(title="PURVA SANKET Industrial System", version="2.0.0", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=ROOT/"frontend"), name="static")
 
 
@@ -203,15 +208,14 @@ def state():
 
 @app.get("/api/health")
 def health():
-    # Container liveness is separate from sensor freshness and equipment risk.
     try:
         with app.state.engine.connect() as db:
             db.execute("SELECT 1").fetchone()
     except Exception as exc:
         raise HTTPException(503, "Database unavailable") from exc
     bridge = app.state.bridge
-    return {"application": "running", "database": "reachable", "version": "2.0.0-demo",
-            "input_mode": bridge.mode, "mqtt_connected": bridge.connected}
+    return {"application": "running", "database": "reachable", "version": "2.0.0",
+            "input_mode": bridge.mode, "connected": bridge.connected}
 
 
 @app.get("/api/history")
@@ -222,8 +226,14 @@ def history():
 @app.post("/api/telemetry")
 def telemetry(packet: Telemetry):
     if app.state.bridge.mode == "offline":
-        raise HTTPException(409, "Offline replay is active. Use MQTT mode for external telemetry.")
-    return {"accepted": app.state.engine.ingest(packet.model_dump())}
+        raise HTTPException(409, "Offline replay is active. Use hardware mode for external telemetry.")
+    accepted = app.state.engine.ingest(packet.model_dump())
+    control = app.state.engine.control_payload()
+    app.state.engine.mark_control_sent(control["command_id"])
+    return {
+        "accepted": accepted,
+        "control": control
+    }
 
 
 @app.post("/api/vision")

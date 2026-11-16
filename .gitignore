@@ -43,3 +43,4 @@ data/*.db-wal
 .idea/
 .DS_Store
 Thumbs.db
+wokwi/sketch/
